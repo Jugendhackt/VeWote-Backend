@@ -1,0 +1,10 @@
+gradle/
+logs/
+traget/
+gradlew
+gradlew.bat
+*.iml
+.idea/
+project/project/
+project/target/
+.g8/
