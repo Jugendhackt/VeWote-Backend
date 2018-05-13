@@ -1,26 +1,24 @@
-import org.postgresql.core.QueryExecutor;
-import play.db.*;
-import play.mvc.Controller;
+package objects;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import play.db.Databases;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-@Singleton
-public class Database {
+public class VewoteDatabase {
+
+    public static VewoteDatabase INSTANCE = new VewoteDatabase(
+                    Databases.createFrom("org.postgresql.Driver", "jdbc:postgresql://localhost:5432/vewote?user=postgres"));
 
     private play.db.Database db;
     private Connection con;
 
-    @Inject
-    public Database(play.db.Database db) {
+    public VewoteDatabase(play.db.Database db) {
         this.db = db;
         this.con = db.getConnection();
 
@@ -59,19 +57,21 @@ public class Database {
         }
     }
 
-    public Poll getPoll(UUID id) {
+    public List<Poll> getPolls() {
+        List<Poll> polls = new ArrayList<>();
+
         try {
-            PreparedStatement stmt = con.prepareStatement("SELECT * FROM Poll WHERE id = ?");
-            stmt.setString(1, id.toString());
+            PreparedStatement stmt = con.prepareStatement("SELECT * FROM Poll");
 
             ResultSet result = stmt.executeQuery();
-            if(result.isBeforeFirst())
-                throw new NullPointerException("No Poll entry found for " + id.toString());
+            while(result.next()) {
+                UUID id = UUID.fromString(result.getString("id"));
+                String title = result.getString("title");
+                List<Answer> answers = getAnswers(id);
 
-            String title = result.getString("title");
-            HashMap<String, Answer> answers = getAnswers(id);
-
-            return new Poll(id, title, answers);
+                polls.add(new Poll(id, title, answers));
+            }
+            return polls;
         }catch (SQLException e) {
             e.printStackTrace();
         }
@@ -79,8 +79,8 @@ public class Database {
         return null;
     }
 
-    private HashMap<String, Answer> getAnswers(UUID poll) {
-        HashMap<String, Answer> answers = new HashMap<>();
+    private List<Answer> getAnswers(UUID poll) {
+        List<Answer> answers = new ArrayList<>();
 
         try {
             PreparedStatement stmt = con.prepareStatement("SELECT * FROM Answer WHERE poll = ?");
@@ -91,7 +91,7 @@ public class Database {
                 String desc = result.getString("desc");
                 int votes = result.getInt("votes");
 
-                answers.put(desc, new Answer(desc, votes));
+                answers.add(new Answer(desc, votes));
             }
 
             return answers;
@@ -105,6 +105,14 @@ public class Database {
     private void configure() {
         try {
             con.setAutoCommit(false);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void close() {
+        try {
+            con.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
